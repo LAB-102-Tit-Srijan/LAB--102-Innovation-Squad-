@@ -1,0 +1,15 @@
+{
+  "name": "Ghoomo",
+  "description": "A luxury travel-tech marketplace for local stays, rentals, and group expense splitting with AI-driven safety and itinerary planning.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "AI Itinerary Planning",
+    "Real-time Split Bills",
+    "Safety SOS System",
+    "Multi-category Marketplace"
+  ]
+}

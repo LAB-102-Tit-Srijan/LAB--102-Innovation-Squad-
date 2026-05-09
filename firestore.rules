@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // User Rules
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) && incoming().keys().hasAll(['uid', 'name', 'email', 'role']) 
+                    && incoming().role in ['traveler', 'host'];
+      allow update: if isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'trustScore', 'lastLocation', 'updatedAt', 'premiumMember', 'governmentIdVerified', 'faceIdVerified']);
+    }
+
+    // Group Rules
+    match /groups/{groupId} {
+      allow read: if isSignedIn() && request.auth.uid in existing().members;
+      allow create: if isSignedIn() && incoming().adminId == request.auth.uid;
+      allow update: if isSignedIn() && request.auth.uid in existing().members;
+      
+      // Expenses subcollection
+      match /expenses/{expenseId} {
+        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members
+                      && incoming().paidById == request.auth.uid;
+        allow delete: if false; // Expenses should be immutable for audit
+      }
+    }
+
+    // Stays Rules
+    match /stays/{stayId} {
+      allow read: if true; // Marketplace is public search
+      allow write: if isSignedIn(); // Simplified for MVP
+    }
+
+    // Rentals Rules
+    match /rentals/{rentalId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Itinerary Rules
+    match /itineraries/{itId} {
+      allow read: if isOwner(existing().userId);
+      allow create: if isOwner(incoming().userId);
+    }
+  }
+}
