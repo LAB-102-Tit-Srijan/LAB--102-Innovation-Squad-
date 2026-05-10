@@ -33,7 +33,8 @@ import {
   Phone,
   MessageSquare,
   Award,
-  ArrowLeft
+  ArrowLeft,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatCurrency, cn } from '../lib/utils';
@@ -78,6 +79,21 @@ export default function Explore() {
   const [activeChat, setActiveChat] = useState<{ isOpen: boolean; provider: any } | null>(null);
 
   const cities = ['Bhopal', 'Indore', 'Vrindavan', 'Manali', 'Darjeeling', 'Varanasi', 'Jaipur'];
+
+  const getFallbackImage = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'pg': return 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&q=80&w=800';
+      case 'hostels':
+      case 'hostel': return 'https://images.unsplash.com/photo-1555854817-40e098e05130?auto=format&fit=crop&q=80&w=800';
+      case 'hotels':
+      case 'hotel': return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=800';
+      case 'street food': return 'https://images.unsplash.com/photo-1601050638917-3d8bc6148a0a?auto=format&fit=crop&q=80&w=800';
+      case 'emergency': return 'https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?auto=format&fit=crop&q=80&w=800';
+      case 'temples': return 'https://images.unsplash.com/photo-1561359313-0639aad49ca6?auto=format&fit=crop&q=80&w=800';
+      case 'bike rentals': return 'https://images.unsplash.com/photo-1558246700-8f35230ed843?auto=format&fit=crop&q=80&w=800';
+      default: return 'https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?auto=format&fit=crop&q=80&w=800';
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -262,22 +278,103 @@ export default function Explore() {
       </div>
 
       {!selectedCity ? (
-        <div className="py-12 space-y-8">
-          <div className="text-center space-y-4">
-            <div className="w-24 h-24 bg-stone-100/50 backdrop-blur-md rounded-full mx-auto flex items-center justify-center mb-6 border-4 border-white shadow-inner relative">
-              <Compass className="text-stone-300 w-10 h-10" />
+        <section className="py-8 space-y-12">
+          {/* Popular Destinations Tags */}
+          <div className="space-y-4">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 px-1">Quick Discovery</h4>
+            <div className="flex flex-wrap gap-3">
+              {POPULAR_DESTINATIONS.map(dest => (
+                <button key={dest.name} onClick={() => setSelectedCity(dest.name)} className={cn("px-6 py-3 rounded-2xl flex items-center gap-3 transition-all font-bold text-natural-text border border-natural-border hover:border-primary/30 active:scale-95 shadow-sm", dest.color)}>
+                  <span className="text-xl">{dest.icon}</span>
+                  <span className="text-sm">{dest.name}</span>
+                </button>
+              ))}
             </div>
-            <h2 className="text-2xl font-serif font-bold text-natural-text tracking-tight">India Awaits</h2>
           </div>
-          <div className="flex flex-wrap justify-center gap-3">
-            {POPULAR_DESTINATIONS.map(dest => (
-              <button key={dest.name} onClick={() => setSelectedCity(dest.name)} className={cn("px-6 py-3 rounded-2xl flex items-center gap-3 transition-all font-bold text-natural-text", dest.color)}>
-                <span className="text-xl">{dest.icon}</span>
-                <span className="text-sm">{dest.name}</span>
-              </button>
-            ))}
+
+          <div className="space-y-6">
+            <div className="flex justify-between items-end px-2">
+              <div className="space-y-1">
+                <h3 className="text-2xl font-serif font-bold text-natural-text">Popular on Ghoomo</h3>
+                <p className="text-[10px] font-black text-stone-400 uppercase tracking-[.2em]">Curated Indian Experiences</p>
+              </div>
+              <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />
+            </div>
+
+            <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6 -mx-4 px-4">
+              {[
+                { 
+                  id: 'spiritual', 
+                  label: 'Spiritual', 
+                  image: 'https://images.unsplash.com/photo-1561359313-0639aad49ca6?auto=format&fit=crop&q=80&w=800',
+                  videoOverlay: 'bg-orange-500/10',
+                  tag: 'Soulful'
+                },
+                { 
+                  id: 'food', 
+                  label: 'Street Food', 
+                  image: 'https://images.unsplash.com/photo-1601050638917-3d8bc6148a0a?auto=format&fit=crop&q=80&w=800',
+                  videoOverlay: 'bg-amber-500/10',
+                  tag: 'Iconic'
+                },
+                { 
+                  id: 'hotels', 
+                  label: 'Luxury Stays', 
+                  image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=800',
+                  videoOverlay: 'bg-stone-500/10',
+                  tag: 'Premium'
+                },
+              ].map((card, i) => (
+                <motion.div
+                  key={card.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  whileHover={{ y: -8 }}
+                  className="min-w-[280px] h-[400px] relative rounded-[40px] overflow-hidden shadow-2xl shadow-stone-200 group flex-shrink-0"
+                >
+                  <img 
+                    src={card.image} 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
+                    alt={card.label}
+                  />
+                  <div className={cn("absolute inset-0 transition-opacity duration-500", card.videoOverlay)} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-transparent to-black/20" />
+                  
+                  <div className="absolute top-8 right-8">
+                    <div className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-[8px] font-black text-white uppercase tracking-[.2em]">
+                      {card.tag}
+                    </div>
+                  </div>
+
+                  <div className="absolute bottom-10 left-10 right-10 space-y-2">
+                    <h4 className="text-3xl font-serif font-bold text-white leading-tight">
+                      {card.label}
+                    </h4>
+                    <div className="w-12 h-1 bg-amber-500 rounded-full group-hover:w-full transition-all duration-500" />
+                    <p className="text-white/60 text-xs font-medium italic opacity-0 group-hover:opacity-100 transition-opacity duration-500 transform translate-y-2 group-hover:translate-y-0">
+                      Discover the essence of Bharat through {card.label.toLowerCase()} trips.
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Value Props */}
+            <div className="grid grid-cols-2 gap-4 pt-4">
+              <div className="bg-stone-50 rounded-[32px] p-6 space-y-2 border border-stone-100">
+                <ShieldCheck className="w-6 h-6 text-emerald-500" />
+                <p className="text-xs font-bold text-natural-text">Verified Stays</p>
+                <p className="text-[10px] text-stone-400 leading-relaxed font-medium">Every host is physically verified by Ghoomo agents.</p>
+              </div>
+              <div className="bg-stone-50 rounded-[32px] p-6 space-y-2 border border-stone-100">
+                <Navigation2 className="w-6 h-6 text-amber-500" />
+                <p className="text-xs font-bold text-natural-text">Real-time Safety</p>
+                <p className="text-[10px] text-stone-400 leading-relaxed font-medium">24/7 SOS and community tracking enabled.</p>
+              </div>
+            </div>
           </div>
-        </div>
+        </section>
       ) : (
         <>
           {/* Find Nearby Guides Section */}
@@ -366,7 +463,7 @@ export default function Explore() {
               {filteredStays.map(stay => (
                 <div key={stay.id} className="bg-white rounded-[44px] overflow-hidden shadow-xl border border-natural-border">
                   <div className="aspect-[16/10] relative">
-                    <img src={stay.image} className="w-full h-full object-cover" />
+                    <img src={stay.image || getFallbackImage(stay.category)} className="w-full h-full object-cover" />
                     <div className="absolute top-6 left-6 bg-white/90 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2">
                        <span className="text-[10px] font-black uppercase tracking-widest">{stay.category}</span>
                        <span className="text-stone-300">|</span>

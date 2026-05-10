@@ -9,7 +9,7 @@ export const MOCK_PLACES = [
     location: 'Ayodhya Bypass',
     isVerified: true,
     price_range: '₹5000 - ₹8000',
-    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=800',
+    image: 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&q=80&w=800',
     rating: 4.5,
     distance: '1.2 km'
   },
@@ -42,15 +42,16 @@ export const MOCK_PLACES = [
   {
     id: 'BHO004',
     city: 'Bhopal',
-    name: 'Boys Luxury PG',
+    name: 'Green Valley PG',
     type: 'PG',
     category: 'PG',
     location: 'E-3, Arera Colony',
-    isVerified: false,
+    isVerified: true,
     price_range: '₹5500 - ₹9000',
-    image: 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&q=80&w=800',
-    rating: 4.1,
-    distance: '3.0 km'
+    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=800',
+    rating: 4.6,
+    distance: '3.0 km',
+    description: 'A lush green campus with modern amenities for students.'
   },
   {
     id: 'BHO005',
@@ -89,7 +90,7 @@ export const MOCK_PLACES = [
     location: 'Bhawar Kuan',
     isVerified: true,
     price_range: '₹5000 - ₹8500',
-    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=800',
+    image: 'https://images.unsplash.com/photo-1555854817-40e098e05130?auto=format&fit=crop&q=80&w=800',
     rating: 4.4,
     distance: '0.5 km'
   },
@@ -303,7 +304,7 @@ export const MOCK_PLACES = [
     location: 'Saket Nagar',
     isVerified: false,
     price_range: '₹5000 - ₹8000',
-    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=800',
+    image: 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&q=80&w=800',
     rating: 4.2,
     distance: '3.0 km'
   },
