@@ -70,6 +70,60 @@ export const userService = {
 };
 
 // Stays & Listings Services
+export const listingService = {
+  async getAllListings() {
+    try {
+      const snap = await getDocs(collection(db, 'listings'));
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, 'listings');
+    }
+  },
+
+  async seedListings(listings: any[]) {
+    try {
+      for (const listing of listings) {
+        await setDoc(doc(db, 'listings', listing.id), {
+          ...listing,
+          createdAt: Timestamp.now(),
+          status: listing.isVerified ? 'verified' : 'pending'
+        });
+      }
+      console.log("Listings seeded successfully");
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'listings/seed');
+    }
+  },
+
+  async createAccommodation(hostId: string, data: any) {
+    try {
+      const listingRef = doc(collection(db, 'listings'));
+      const listingData = {
+        ...data,
+        id: listingRef.id,
+        hostId,
+        isVerified: false,
+        status: 'pending',
+        createdAt: Timestamp.now()
+      };
+      await setDoc(listingRef, listingData);
+      return listingData;
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'listings');
+    }
+  },
+
+  async getHostListings(hostId: string) {
+    try {
+      const q = query(collection(db, 'listings'), where('hostId', '==', hostId));
+      const snap = await getDocs(q);
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, 'listings/host');
+    }
+  }
+};
+
 export const stayService = {
   async getAllStays() {
     try {
@@ -149,16 +203,74 @@ export const groupService = {
     }
   },
 
-  async addExpense(groupId: string, expenseData: any) {
+  async deleteGroup(groupId: string) {
+    try {
+      // Note: Ideally we should delete sub-collections too, but Firestore doesn't do this automatically.
+      // For this app, we'll just delete the group doc.
+      await deleteDoc(doc(db, 'groups', groupId));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `groups/${groupId}`);
+    }
+  },
+
+  async joinByCode(userId: string, code: string) {
+    try {
+      const q = query(collection(db, 'groups'), where('inviteCode', '==', code.toUpperCase()));
+      const snap = await getDocs(q);
+      if (snap.empty) throw new Error("Invalid invite code");
+      
+      const groupDoc = snap.docs[0];
+      const data = groupDoc.data();
+      if (data.members.includes(userId)) return data;
+
+      await updateDoc(groupDoc.ref, {
+        members: [...data.members, userId],
+        updatedAt: Timestamp.now()
+      });
+      return { ...data, members: [...data.members, userId] };
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, 'groups/join');
+    }
+  },
+
+  async addExpense(groupId: string, expenseData: {
+    amount: number;
+    description: string;
+    category: string;
+    paidById: string;
+    paidByName: string;
+    splitMethod: 'equal' | 'percentage' | 'custom';
+    splitData: Record<string, number>;
+  }) {
     try {
       const expenseRef = doc(collection(db, `groups/${groupId}/expenses`));
       await setDoc(expenseRef, {
         ...expenseData,
         id: expenseRef.id,
+        createdAt: Timestamp.now(), // Added for sorting/display
         timestamp: Timestamp.now()
       });
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, `groups/${groupId}/expenses`);
+    }
+  },
+
+  async updateExpense(groupId: string, expenseId: string, data: any) {
+    try {
+      await updateDoc(doc(db, `groups/${groupId}/expenses`, expenseId), {
+        ...data,
+        updatedAt: Timestamp.now()
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `groups/${groupId}/expenses/${expenseId}`);
+    }
+  },
+
+  async deleteExpense(groupId: string, expenseId: string) {
+    try {
+      await deleteDoc(doc(db, `groups/${groupId}/expenses`, expenseId));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `groups/${groupId}/expenses/${expenseId}`);
     }
   },
 

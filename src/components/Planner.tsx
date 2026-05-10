@@ -7,9 +7,10 @@ import {
   ArrowRight,
   Utensils,
   Camera,
-  Compass
+  Compass,
+  ArrowLeft
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { geminiService } from '../services/geminiService';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/utils';
@@ -35,8 +36,22 @@ export default function Planner() {
   };
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-1 px-2">
+    <div className="space-y-8 relative">
+      <AnimatePresence>
+        {itinerary && (
+          <motion.button 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            onClick={() => setItinerary(null)}
+            className="fixed top-6 left-6 z-[60] w-12 h-12 rounded-full flex items-center justify-center bg-white/20 backdrop-blur-xl border border-white/30 text-stone-900 shadow-xl transition-all active:scale-95"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <header className={cn("space-y-1 px-2", itinerary && "pt-16")}>
         <h1 className="text-3xl font-serif font-bold text-natural-text flex items-center gap-3">
           AI Planner
           <div className="bg-primary rounded-full p-2 shadow-lg shadow-primary/20">

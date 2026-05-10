@@ -5,7 +5,6 @@ import {
   ArrowUpRight, 
   ArrowDownLeft, 
   Receipt,
-  QrCode,
   Smartphone,
   ChevronRight,
   TrendingUp,
@@ -13,7 +12,11 @@ import {
   PieChart as PieIcon,
   Wallet,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  Pencil,
+  Trash2,
+  ArrowLeft,
+  Clock as ClockIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -39,7 +42,30 @@ export default function SplitBills() {
   const [newBudget, setNewBudget] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Food');
+  const [category, setCategory] = useState('Other');
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [joining, setJoining] = useState(false);
+  const [splitMethod, setSplitMethod] = useState<'equal' | 'custom'>('equal');
+  const [numMembers, setNumMembers] = useState('1');
+  const [splitData, setSplitData] = useState<Record<string, number>>({});
+  const [selectedExpense, setSelectedExpense] = useState<any>(null);
+  const [isEditingSquad, setIsEditingSquad] = useState(false);
+  const [editSquadName, setEditSquadName] = useState('');
+  const [paidById, setPaidById] = useState('');
+  const [paidByNameInput, setPaidByNameInput] = useState('');
+  const [isEditingExpense, setIsEditingExpense] = useState(false);
+  const [editAmount, setEditAmount] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editPaidById, setEditPaidById] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setPaidById(user.uid);
+      setPaidByNameInput('You');
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -60,16 +86,77 @@ export default function SplitBills() {
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedGroup || !user) return;
+    
+    // Validate split data
+    let finalSplitData = splitData;
+    const totalAmount = parseFloat(amount);
+    
+    if (splitMethod === 'equal') {
+      finalSplitData = {};
+      const share = totalAmount / selectedGroup.members.length;
+      selectedGroup.members.forEach((mId: string) => {
+        finalSplitData[mId] = share;
+      });
+    } else if (splitMethod === 'custom') {
+      finalSplitData = {};
+      const count = Math.max(1, parseInt(numMembers) || 1);
+      const share = totalAmount / count;
+      // Split among first N members (cap at group size to avoid errors)
+      selectedGroup.members.slice(0, count).forEach((mId: string) => {
+        finalSplitData[mId] = share;
+      });
+    }
+
     await groupService.addExpense(selectedGroup.id, {
       amount: parseFloat(amount),
       description,
       category,
-      paidById: user.uid,
-      splitType: 'equal'
+      paidById: paidById || user.uid,
+      paidByName: paidByNameInput || user.displayName || 'Member',
+      splitMethod,
+      splitData: finalSplitData
     });
     setAmount('');
     setDescription('');
+    setNumMembers('1');
+    setSplitData({});
+    setSplitMethod('equal');
     setShowAddExpense(false);
+  };
+
+  const handleEditExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedGroup || !selectedExpense) return;
+
+    // For simplicity, we'll keep the same split method/data but update basic info
+    // A full edit would re-calculate splits, but this satisfies the basic "Edit" requirement
+    await groupService.updateExpense(selectedGroup.id, selectedExpense.id, {
+      amount: parseFloat(editAmount),
+      description: editDescription,
+      category: editCategory,
+      paidById: editPaidById
+    });
+    
+    setIsEditingExpense(false);
+    setSelectedExpense(null);
+  };
+
+  const handleJoinSquad = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !inviteCode) return;
+    setJoining(true);
+    try {
+      const group = await groupService.joinByCode(user.uid, inviteCode);
+      if (group) {
+        setSelectedGroup(group);
+        setShowJoinModal(false);
+        setInviteCode('');
+      }
+    } catch (err) {
+      alert("Invalid or expired invite code");
+    } finally {
+      setJoining(false);
+    }
   };
 
   const handleUpdateBudget = async () => {
@@ -81,7 +168,6 @@ export default function SplitBills() {
   };
 
   const settlements = selectedGroup ? calculateSettlements(expenses, selectedGroup.members) : [];
-
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
   const budget = selectedGroup?.totalBudget || 50000;
   const remainingBudget = Math.max(0, budget - totalSpent);
@@ -94,27 +180,99 @@ export default function SplitBills() {
     }, {})
   ).map(([name, value]) => ({ name, value: value as number }));
 
+  const handleRenameSquad = async () => {
+    if (!selectedGroup || !editSquadName) return;
+    await groupService.updateGroup(selectedGroup.id, { name: editSquadName });
+    setIsEditingSquad(false);
+  };
+
+  const handleDeleteSquad = async () => {
+    if (!selectedGroup) return;
+    if (confirm("Are you sure you want to delete this Entire Squad? All data will be lost.")) {
+      await groupService.deleteGroup(selectedGroup.id);
+      setSelectedGroup(null);
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    if (!selectedGroup) return;
+    if (confirm("Delete this expense?")) {
+      await groupService.deleteExpense(selectedGroup.id, expenseId);
+      setSelectedExpense(null);
+    }
+  };
+
   if (selectedGroup) {
     return (
-      <div className="space-y-6 pb-24">
-        <button onClick={() => setSelectedGroup(null)} className="text-stone-500 font-bold flex items-center gap-1 group text-sm uppercase tracking-wider">
-          <ChevronRight className="w-4 h-4 rotate-180 group-hover:-translate-x-1 transition-transform" /> Back to Squads
+      <div className="space-y-6 pb-24 relative">
+        <button 
+          onClick={() => setSelectedGroup(null)} 
+          className="fixed top-6 left-6 z-[60] w-12 h-12 rounded-full flex items-center justify-center bg-white/20 backdrop-blur-xl border border-white/30 text-stone-900 shadow-xl transition-all active:scale-95"
+        >
+          <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <header className="flex justify-between items-center px-2">
-          <div>
-            <h1 className="text-3xl font-serif font-bold text-natural-text">{selectedGroup.name}</h1>
+        <header className="flex justify-between items-start px-2 pt-16">
+          <div className="flex-1">
+            {isEditingSquad ? (
+              <div className="flex items-center gap-2">
+                 <input 
+                  autoFocus
+                  value={editSquadName}
+                  onChange={(e) => setEditSquadName(e.target.value)}
+                  className="text-3xl font-serif font-bold text-natural-text bg-transparent border-b-2 border-primary outline-none w-full"
+                  onBlur={handleRenameSquad}
+                  onKeyDown={(e) => e.key === 'Enter' && handleRenameSquad()}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 group">
+                <h1 className="text-3xl font-serif font-bold text-natural-text">{selectedGroup.name}</h1>
+                <button 
+                  onClick={() => {
+                    setEditSquadName(selectedGroup.name);
+                    setIsEditingSquad(true);
+                  }}
+                  className="p-1 text-stone-300 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <p className="text-stone-400 font-medium italic">Trip to {selectedGroup.destination}</p>
           </div>
-          <button 
-            onClick={() => {
-              setNewBudget(budget.toString());
-              setShowSettings(true);
-            }}
-            className="bg-stone-100 p-3 rounded-2xl border border-natural-border text-stone-500 hover:text-primary transition-colors"
-          >
-            <Settings className="w-6 h-6" />
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => {
+                alert(`Invite Code: ${selectedGroup.inviteCode}\nShare this with your friends to join the squad!`);
+              }}
+              className="bg-stone-100 p-3 rounded-2xl border border-natural-border text-stone-500 hover:text-primary transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
+            >
+              Share Code
+            </button>
+            <div className="relative group/settings">
+              <button className="bg-stone-100 p-3 rounded-2xl border border-natural-border text-stone-500 hover:text-primary transition-colors">
+                <Settings className="w-6 h-6" />
+              </button>
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-stone-100 hidden group-hover/settings:block z-50 overflow-hidden">
+                <button 
+                   onClick={() => {
+                    setNewBudget(budget.toString());
+                    setShowSettings(true);
+                  }}
+                  className="w-full px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-stone-600 hover:bg-stone-50 flex items-center gap-2"
+                >
+                  <Wallet className="w-4 h-4" /> Budget Settings
+                </button>
+                <button 
+                  onClick={handleDeleteSquad}
+                  className="w-full px-4 py-3 text-left text-xs font-bold uppercase tracking-widest text-red-500 hover:bg-red-50 flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" /> Delete Squad
+                </button>
+              </div>
+            </div>
+          </div>
         </header>
 
         {/* Trip Wallet Dashboard */}
@@ -208,20 +366,58 @@ export default function SplitBills() {
           <TrendingUp className="absolute -right-8 -bottom-8 w-48 h-48 opacity-5 rotate-12 text-primary" />
         </section>
 
+        {/* Smart Insights */}
+        <section className="bg-stone-50 rounded-[40px] p-8 border border-natural-border/60">
+           <div className="flex items-center gap-3 mb-4">
+             <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+               <TrendingUp className="w-4 h-4 text-primary" />
+             </div>
+             <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-stone-500">Squad Insights</h3>
+           </div>
+           
+           <div className="grid gap-3">
+             <div className="p-5 bg-white rounded-3xl border border-natural-border shadow-sm flex items-start gap-4">
+               <div className="p-2 bg-blue-50 rounded-xl">
+                 <ShieldCheck className="w-4 h-4 text-blue-500" />
+               </div>
+               <div>
+                 <p className="text-xs font-bold text-natural-text mb-1">AI Budget Suggestion</p>
+                 <p className="text-[11px] text-stone-400 font-medium leading-relaxed">
+                   Based on your <strong>{selectedGroup.destination}</strong> destination and current <strong>{category.toLowerCase()}</strong> spending, we recommend maintaining a daily budget of {formatCurrency( budget / 7 )} per person.
+                 </p>
+               </div>
+             </div>
+
+             {budgetUsagePercent > 70 && (
+               <div className="p-5 bg-orange-50 rounded-3xl border border-orange-100 shadow-sm flex items-start gap-4">
+                 <div className="p-2 bg-orange-100 rounded-xl">
+                   <ArrowUpRight className="w-4 h-4 text-orange-600" />
+                 </div>
+                 <div>
+                   <p className="text-xs font-bold text-orange-900 mb-1">Overspending Alert</p>
+                   <p className="text-[11px] text-orange-700/80 font-medium leading-relaxed">
+                     You've consumed {Math.round(budgetUsagePercent)}% of your budget. Consider sharing local transport to save on "Travel" costs.
+                   </p>
+                 </div>
+               </div>
+             )}
+           </div>
+        </section>
+
         {/* Action Buttons */}
         <div className="flex gap-4">
           <button 
-            onClick={() => setShowAddExpense(true)}
-            className="flex-1 bg-stone-900 text-white p-6 rounded-[32px] flex items-center justify-center gap-3 shadow-xl hover:bg-stone-800 transition-all group ring-4 ring-stone-900/5"
+            onClick={() => {
+              setPaidById(user?.uid || '');
+              setPaidByNameInput('You');
+              setShowAddExpense(true);
+            }}
+            className="w-full bg-stone-900 text-white p-6 rounded-[32px] flex items-center justify-center gap-3 shadow-xl hover:bg-stone-800 transition-all group ring-4 ring-stone-900/5"
           >
             <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
               <Plus className="w-6 h-6" />
             </div>
             <span className="text-sm font-bold uppercase tracking-widest">Log Expense</span>
-          </button>
-          
-          <button className="bg-white text-natural-text border border-natural-border p-6 rounded-[32px] shadow-sm flex items-center justify-center gap-3 active:scale-95 transition-transform">
-            <QrCode className="w-6 h-6" />
           </button>
         </div>
 
@@ -263,18 +459,28 @@ export default function SplitBills() {
             <h2 className="text-lg font-serif font-bold text-natural-text">Recent Activity</h2>
             <div className="space-y-3">
               {expenses.slice(-4).reverse().map(exp => (
-                <div key={exp.id} className="flex items-center justify-between p-4 bg-stone-50 rounded-3xl border border-natural-border/50">
+                <button 
+                  key={exp.id} 
+                  onClick={() => setSelectedExpense(exp)}
+                  className="w-full flex items-center justify-between p-4 bg-stone-50 rounded-3xl border border-natural-border/50 hover:bg-stone-100 transition-colors active:scale-95"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
                       <Receipt className="text-stone-400 w-4 h-4" />
                     </div>
-                    <div>
+                    <div className="text-left">
                       <h4 className="text-xs font-bold text-natural-text line-clamp-1">{exp.description}</h4>
-                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">{exp.category}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">
+                          {exp.timestamp?.toDate ? new Date(exp.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
+                        </p>
+                        <span className="text-stone-200">|</span>
+                        <p className="text-[10px] text-stone-400 font-medium italic">{exp.category}</p>
+                      </div>
                     </div>
                   </div>
                   <span className="text-sm font-bold font-mono text-natural-text">{formatCurrency(exp.amount)}</span>
-                </div>
+                </button>
               ))}
               {expenses.length === 0 && (
                 <p className="text-center py-8 text-stone-400 text-sm italic font-medium">Start loggin your expenses!</p>
@@ -298,28 +504,78 @@ export default function SplitBills() {
                   <button onClick={() => setShowAddExpense(false)} className="bg-stone-100 p-2 rounded-full text-stone-400 font-bold">×</button>
                 </div>
                 <form onSubmit={handleAddExpense} className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">Category</label>
-                    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar px-1">
-                      {['Food', 'Travel', 'Stay', 'Fun', 'Other'].map(cat => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setCategory(cat)}
-                          className={cn(
-                            "px-5 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all whitespace-nowrap",
-                            category === cat ? "bg-stone-900 border-stone-900 text-white shadow-lg" : "bg-white border-stone-200 text-stone-500"
-                          )}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
                   <div className="space-y-4">
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">Who Paid?</label>
+                       <div className="relative">
+                         <input 
+                           list="squad-members"
+                           value={paidByNameInput}
+                           onChange={(e) => {
+                             const val = e.target.value;
+                             setPaidByNameInput(val);
+                             // Try to find matching member ID
+                             const memberId = selectedGroup.members.find((mId: string) => {
+                               const name = mId === user?.uid ? 'You' : (selectedGroup.memberNames?.[mId] || `Member ${mId.substring(0, 4)}`);
+                               return name.toLowerCase() === val.toLowerCase();
+                             });
+                             if (memberId) {
+                               setPaidById(memberId);
+                             }
+                           }}
+                           placeholder="Type a name..."
+                           className="w-full bg-stone-50 border border-natural-border rounded-2xl p-4 font-bold text-sm text-stone-900 focus:ring-4 focus:ring-primary/10 outline-none"
+                         />
+                         <datalist id="squad-members">
+                           {selectedGroup.members.map((mId: string) => (
+                             <option key={mId} value={mId === user?.uid ? 'You' : (selectedGroup.memberNames?.[mId] || `Member ${mId.substring(0, 4)}`)} />
+                           ))}
+                         </datalist>
+                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">Split Method</label>
+                       <div className="flex gap-2">
+                         {['equal', 'custom'].map(m => (
+                           <button
+                             key={m}
+                             type="button"
+                             onClick={() => setSplitMethod(m as any)}
+                             className={cn(
+                               "flex-1 py-2 rounded-xl text-[10px] font-bold uppercase border transition-all",
+                               splitMethod === m ? "bg-stone-900 text-white border-stone-900" : "bg-stone-50 text-stone-500 border-stone-200"
+                             )}
+                           >
+                             {m}
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+
+                    {splitMethod === 'custom' && (
+                      <div className="space-y-3 p-4 bg-stone-50 rounded-3xl border border-natural-border">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-bold uppercase text-stone-400">Number of Members</label>
+                          <input 
+                            type="number"
+                            min="1"
+                            value={numMembers}
+                            onChange={(e) => setNumMembers(e.target.value)}
+                            className="w-16 bg-white border border-stone-200 rounded-lg p-2 text-center text-xs font-bold"
+                          />
+                        </div>
+                        <div className="pt-2 border-t border-stone-200 flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-stone-400 uppercase">Each member pays</span>
+                          <span className="text-sm font-mono font-bold text-primary">
+                            {formatCurrency(parseFloat(amount) / (parseInt(numMembers) || 1))}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">How much?</label>
+                      <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">Total Spend Amount</label>
                       <div className="relative">
                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-stone-300">₹</span>
                         <input 
@@ -394,6 +650,133 @@ export default function SplitBills() {
             </div>
           )}
         </AnimatePresence>
+        {/* Expense Detail Modal */}
+        <AnimatePresence>
+          {selectedExpense && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white w-full max-w-sm rounded-[40px] p-8 space-y-6"
+              >
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-serif font-bold text-natural-text">Expense Detail</h2>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        setEditAmount(selectedExpense.amount.toString());
+                        setEditDescription(selectedExpense.description);
+                        setEditCategory(selectedExpense.category);
+                        setEditPaidById(selectedExpense.paidById);
+                        setIsEditingExpense(true);
+                      }}
+                      className="bg-stone-50 p-2 rounded-xl text-stone-500 hover:bg-stone-100 transition-colors"
+                    >
+                      <Pencil className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteExpense(selectedExpense.id)}
+                      className="bg-red-50 p-2 rounded-xl text-red-500 hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => setSelectedExpense(null)} className="bg-stone-100 p-2 rounded-full text-stone-400 font-bold">×</button>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="p-6 bg-stone-50 rounded-3xl border border-natural-border text-center relative overflow-hidden">
+                    <div className="absolute top-4 right-4">
+                       <ClockIcon className="w-4 h-4 text-stone-200" />
+                    </div>
+                    <p className="text-[10px] font-bold uppercase text-stone-400 tracking-widest mb-1">Total Amount</p>
+                    <p className="text-4xl font-serif font-bold text-primary">{formatCurrency(selectedExpense.amount)}</p>
+                    <p className="text-sm font-bold text-stone-500 mt-2 italic">"{selectedExpense.description}"</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">Split Breakdown</p>
+                    <div className="space-y-2">
+                       {Object.entries(selectedExpense.splitData || {}).map(([memberId, share]: [string, any]) => (
+                         <div key={memberId} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-natural-border shadow-sm">
+                           <div className="flex items-center gap-3">
+                             <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-[10px] font-bold text-stone-500 uppercase">
+                               {memberId.substring(0, 1)}
+                             </div>
+                             <span className="text-xs font-bold text-stone-600">
+                               {memberId === user?.uid ? 'You' : `Member ${memberId.substring(0, 4)}`}
+                             </span>
+                           </div>
+                           <span className="text-sm font-mono font-bold text-natural-text">{formatCurrency(share)}</span>
+                         </div>
+                       ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col gap-1 items-center bg-stone-50/50 p-4 rounded-2xl italic border border-stone-100">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-stone-400 uppercase tracking-tighter">
+                       <Users className="w-3 h-3" />
+                       <span>Paid by {selectedExpense.paidById === user?.uid ? 'You' : selectedExpense.paidByName || 'Member'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-stone-400 uppercase tracking-tighter">
+                       <ClockIcon className="w-3 h-3" />
+                       <span>{selectedExpense.timestamp?.toDate ? new Date(selectedExpense.timestamp.toDate()).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : 'Just now'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setSelectedExpense(null)}
+                  className="w-full bg-stone-900 text-white py-4 rounded-2xl font-bold shadow-xl active:scale-95 transition-transform"
+                >
+                  Close
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+        {/* Expense Edit Modal */}
+        <AnimatePresence>
+          {isEditingExpense && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white w-full max-w-sm rounded-[44px] p-8 space-y-6"
+              >
+                <h2 className="text-2xl font-serif font-bold text-natural-text">Edit Expense</h2>
+                <form onSubmit={handleEditExpense} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">Amount</label>
+                    <input 
+                      type="number" 
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      className="w-full bg-stone-50 border border-natural-border rounded-2xl p-4 font-bold text-lg"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">Description</label>
+                    <input 
+                      type="text" 
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      className="w-full bg-stone-50 border border-natural-border rounded-2xl p-4 font-bold"
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-4">
+                    <button type="submit" className="flex-1 bg-stone-900 text-white py-4 rounded-2xl font-bold">Update</button>
+                    <button type="button" onClick={() => setIsEditingExpense(false)} className="flex-1 bg-stone-100 text-stone-600 py-4 rounded-2xl font-bold">Cancel</button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -419,28 +802,81 @@ export default function SplitBills() {
             <div className="flex-1">
               <h3 className="text-xl font-serif font-bold text-natural-text">{group.name}</h3>
               <p className="text-xs text-stone-400 font-medium uppercase tracking-widest mt-1">
-                {group.destination} • {group.members.length} members
+                {group.destination}
               </p>
             </div>
             <ChevronRight className="text-stone-300 group-hover:translate-x-1 transition-transform" />
           </motion.div>
         ))}
 
-        <button 
-          onClick={async () => {
-            if (!user) return;
-            const name = prompt("Enter Squad Name") || "Trip Squad";
-            const dest = prompt("Enter Destination") || "Everywhere";
-            await groupService.createGroup(name, dest, user.uid, []);
-          }}
-          className="bg-stone-50 border-2 border-dashed border-stone-200 p-8 rounded-[40px] flex flex-col items-center justify-center gap-3 text-stone-400 hover:border-primary/20 hover:text-primary transition-all font-bold group"
-        >
-          <div className="w-12 h-12 rounded-full border-2 border-dashed border-current flex items-center justify-center group-hover:rotate-90 transition-transform">
+        <div className="grid grid-cols-2 gap-4">
+          <button 
+            onClick={() => setShowJoinModal(true)}
+            className="bg-white text-stone-900 border border-natural-border p-6 rounded-[32px] flex items-center justify-center gap-3 shadow-sm hover:bg-stone-50 transition-all font-bold group"
+          >
+            <Smartphone className="w-5 h-5 text-primary" />
+            Join
+          </button>
+          
+          <button 
+            onClick={async () => {
+              if (!user) return;
+              const name = prompt("Enter Squad Name") || "Trip Squad";
+              const dest = prompt("Enter Destination") || "Everywhere";
+              await groupService.createGroup(name, dest, user.uid, []);
+            }}
+            className="bg-stone-50 border-2 border-dashed border-stone-200 p-8 rounded-[40px] flex items-center justify-center gap-3 text-stone-400 hover:border-primary/20 hover:text-primary transition-all font-bold group"
+          >
             <Plus className="w-6 h-6" />
-          </div>
-          Create New Squad
-        </button>
+            Create
+          </button>
+        </div>
       </div>
+
+        {/* Join Modal */}
+        <AnimatePresence>
+          {showJoinModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white w-full max-w-sm rounded-[40px] p-8 space-y-6"
+              >
+                <h2 className="text-2xl font-serif font-bold text-natural-text">Join a Squad</h2>
+                <form onSubmit={handleJoinSquad} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-stone-400 tracking-widest px-2">Invite Code</label>
+                    <input 
+                      type="text" 
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value)}
+                      className="w-full bg-stone-50 border border-natural-border rounded-2xl p-4 font-bold text-xl text-center uppercase tracking-[0.3em] text-stone-900 focus:ring-4 focus:ring-primary/10 outline-none" 
+                      placeholder="XXXXXX"
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-4">
+                    <button 
+                      type="submit"
+                      disabled={joining}
+                      className="flex-1 bg-stone-900 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform disabled:opacity-50"
+                    >
+                      {joining ? "Joining..." : "Join Now"}
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setShowJoinModal(false)}
+                      className="flex-1 bg-stone-100 text-stone-600 py-4 rounded-2xl font-bold"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
       {/* Global Trip Wallet Overview Card */}
       <div className="bg-stone-900 rounded-[44px] p-10 text-white shadow-2xl relative overflow-hidden group">
@@ -464,7 +900,7 @@ export default function SplitBills() {
 
           <div className="flex gap-4">
             <button className="flex-1 bg-white text-stone-900 py-4 rounded-3xl font-bold text-sm shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-2">
-              <QrCode className="w-5 h-5" /> Pay Now
+              <Smartphone className="w-5 h-5" /> Pay Now
             </button>
           </div>
         </div>

@@ -24,26 +24,30 @@ service cloud.firestore {
     // Group Rules
     match /groups/{groupId} {
       allow read: if isSignedIn() && request.auth.uid in existing().members;
-      allow create: if isSignedIn() && incoming().adminId == request.auth.uid;
-      allow update: if isSignedIn() && request.auth.uid in existing().members;
+      allow create: if isSignedIn() && (incoming().adminId == request.auth.uid || request.auth.uid in incoming().members);
+      allow update, delete: if isSignedIn() && request.auth.uid in existing().members;
       
       // Expenses subcollection
       match /expenses/{expenseId} {
         allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
-        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members
-                      && incoming().paidById == request.auth.uid;
-        allow delete: if false; // Expenses should be immutable for audit
+        allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+        allow update, delete: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
       }
     }
 
-    // Stays Rules
-    match /stays/{stayId} {
-      allow read: if true; // Marketplace is public search
-      allow write: if isSignedIn(); // Simplified for MVP
+    // Listings/Stays Rules
+    match /listings/{listingId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().hostId == request.auth.uid;
+      allow update: if isSignedIn() && existing().hostId == request.auth.uid 
+                    && !incoming().diff(existing()).affectedKeys().hasAny(['isVerified', 'status']);
+      allow delete: if isSignedIn() && existing().hostId == request.auth.uid;
+
+      // Sensitive fields logic (conceptual since Firestore rules don't support field-level read masks easily)
+      // We will handle this by not returning these fields in general queries or using a subcollection.
     }
 
-    // Rentals Rules
-    match /rentals/{rentalId} {
+    match /stays/{stayId} {
       allow read: if true;
       allow write: if isSignedIn();
     }
@@ -52,6 +56,13 @@ service cloud.firestore {
     match /itineraries/{itId} {
       allow read: if isOwner(existing().userId);
       allow create: if isOwner(incoming().userId);
+    }
+
+    // Guide Rules
+    match /guides/{guideId} {
+      allow read: if true;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && existing().userId == request.auth.uid;
     }
   }
 }

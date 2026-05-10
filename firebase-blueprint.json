@@ -27,22 +27,32 @@
     },
     "Stay": {
       "title": "Accommodation Listing",
-      "description": "A property listed for rent.",
+      "description": "A property listed for rent by a host.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "hostId": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "category": { "type": "string", "enum": ["Couple", "Female-only", "Student", "Family", "Bachelor", "Budget"] },
-        "hourlyRate": { "type": "number" },
-        "dailyRate": { "type": "number" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["PG", "Hotel", "Hostel", "Emergency Home Stay"] },
+        "city": { "type": "string" },
         "location": { "type": "string" },
+        "gps": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "price_range": { "type": "string" },
+        "description": { "type": "string" },
         "images": { "type": "array", "items": { "type": "string" } },
-        "isSafeForSoloWomen": { "type": "boolean" },
-        "emergencyOvercrowdingSupport": { "type": "boolean" }
+        "isVerified": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "governmentIdUrl": { "type": "string" },
+        "propertyDocsUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["hostId", "title", "category", "hourlyRate"]
+      "required": ["hostId", "name", "type", "city", "location", "price_range"]
     },
     "Rental": {
       "title": "Vehicle Rental",
@@ -106,14 +116,44 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "destination", "plan"]
+    },
+    "Guide": {
+      "title": "Local Guide",
+      "description": "A verified local individual offering guiding services.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "bio": { "type": "string" },
+        "experience": { "type": "string" },
+        "hourlyRate": { "type": "number" },
+        "dailyRate": { "type": "number" },
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "baseLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "cityName": { "type": "string" }
+          }
+        },
+        "rating": { "type": "number" },
+        "isVerified": { "type": "boolean" },
+        "governmentIdUrl": { "type": "string" },
+        "certificationUrl": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "bio", "hourlyRate", "languages", "phoneNumber"]
     }
   },
   "firestore": {
     "users": { "schema": "User", "description": "User profiles and verification data." },
-    "stays": { "schema": "Stay", "description": "Accommodation listings." },
+    "listings": { "schema": "Stay", "description": "Consolidated accommodation and experience listings." },
     "rentals": { "schema": "Rental", "description": "Vehicle rental listings." },
     "groups": { "schema": "Group", "description": "Travel groups for split bills." },
     "groups/{groupId}/expenses": { "schema": "Expense", "description": "Expenses for a specific group." },
-    "itineraries": { "schema": "Itinerary", "description": "AI generated travel plans." }
+    "itineraries": { "schema": "Itinerary", "description": "AI generated travel plans." },
+    "guides": { "schema": "Guide", "description": "Local guide profiles." }
   }
 }

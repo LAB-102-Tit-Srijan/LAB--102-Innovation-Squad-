@@ -16,7 +16,17 @@
 @layer base {
   body {
     -webkit-tap-highlight-color: transparent;
-    @apply bg-natural-bg text-natural-text;
+    @apply text-natural-text;
+    background-color: #F9F7F2;
+    background-image: 
+      linear-gradient(rgba(249, 247, 242, 0.95), rgba(249, 247, 242, 0.95)),
+      url('https://www.transparenttextures.com/patterns/crumpled-paper.png'),
+      url('https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&q=80&w=2000');
+    background-size: auto, auto, cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: repeat, repeat, no-repeat;
+    background-blend-mode: normal, multiply, normal;
   }
 }
 

@@ -14,14 +14,28 @@ export function formatCurrency(amount: number) {
 }
 
 export function calculateSettlements(expenses: any[], members: string[]) {
-  // Simple algorithm to calculate who owes whom
-  const balances: Record<string, number> = {};
-  members.forEach(m => balances[m] = 0);
+  if (!expenses.length || !members.length) return [];
 
-  expenses.forEach(exp => {
-    balances[exp.paidById] += exp.amount;
-    const share = exp.amount / members.length; // Assume equal split for demo simplicity
-    members.forEach(m => balances[m] -= share);
+  // Calculate net balance for each member
+  const balances: Record<string, number> = {};
+  members.forEach(m => (balances[m] = 0));
+
+  expenses.forEach((exp) => {
+    const paidBy = exp.paidById;
+    const amount = exp.amount;
+    const splitMethod = exp.splitMethod || "equal";
+    const splitData = exp.splitData || {};
+
+    balances[paidBy] += amount;
+
+    if (splitMethod === "equal") {
+      const perPerson = amount / members.length;
+      members.forEach((m) => (balances[m] -= perPerson));
+    } else if (splitMethod === "custom") {
+      members.forEach((m) => {
+        balances[m] -= splitData[m] || 0;
+      });
+    }
   });
 
   const creditors = Object.entries(balances)
@@ -39,7 +53,7 @@ export function calculateSettlements(expenses: any[], members: string[]) {
     transactions.push({
       from: debtors[j][0],
       to: creditors[i][0],
-      amount
+      amount,
     });
     creditors[i][1] -= amount;
     debtors[j][1] += amount;
